@@ -11,9 +11,8 @@
 use Linux::Inotify2;
 use Getopt::Long;
 use File::Basename;
-use IO::Select;
+use Config::General;
 
-my $remote = 0;
 my $log = 0;
 my %opts = ('log' => \$log);
 $opts{delay} = 0;
@@ -27,8 +26,10 @@ if (!exists($opts{source}) || !exists($opts{target})) {
 
 my ($source, $base) = fileparse($opts{source});
 my ($host, $target) = split(/:/, $opts{target});
+
 my $last = time;
-my $events = 0;
+my $remote = 0;
+my $queue = 0;
 my $rsync = 0;
 
 # Does a remote->local sync
@@ -64,25 +65,28 @@ remote_sync;
 # Setup the watch structure and begin
 my $pool = new Linux::Inotify2 or die;
 
+# Set non-blocking mode on the fd
 $pool->blocking(0);
-$pool->watch("$base/$source", IN_MODIFY|IN_ATTRIB|IN_MOVE|IN_CLOSEWRITE|IN_DELETE|IN_CREATE|IN_MOVE_SELF);
+$pool->watch("$base/$source", IN_MODIFY|IN_MOVE|IN_CLOSEWRITE|IN_DELETE|IN_CREATE|IN_MOVE_SELF);
 
 while () {
+  # We just performed a local<-remote sync, so we have no need to catch the events here..
   if ($remote) {
     $remote = 0;
     next;
   }
 
-  my @evts = $pool->read;
-    # We only want to execute the rsync after we've filled the queue..
-    foreach $e (@evts) {
-      $events++;
+  # We only want to execute the rsync after we've filled the queue. This is a non-blocking read.
+  my @events = $pool->read;
+  foreach $e (@events) {
+    $queue++;
   }
 
-  if ($events >= $opts{queue}) {
-    # Perform the rsync operation, but only if we're not currently running something already.
+  # Perform the rsync operation, but only if we're not currently running something already.
+  if ($queue >= $opts{queue}) {
     if (!$rsync) {
       local_sync;
+      $queue = 0;
     }
   }
 
