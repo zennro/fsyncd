@@ -1,0 +1,26 @@
+# fsyncd/README
+# Copyright (C) 2012 Shaun Landis
+
+This script is an implementation of Linux::Inotify2 and Mac::FSEvents, and effectively
+monitors the given path(s) for changes, and the rsyncs these changes to a remote directory
+on another machine. We run rsync in such a manner so as to not kill extraneous files that
+exist on one end and not the other, but you should be careful in enabling the remote->local
+feature. You could lose data easily if something went wrong.
+
+This script requires that you have a public key setup for the remote server such that no
+login credentials need be supplied to rsync/ssh.
+
+Please visit http://www.eng.cam.ac.uk/help/jpmg/ssh/authorized_keys_howto.html for assistance
+in setting up a valid keypair.
+
+Usage:
+  fsyncd --source=<directory> --target=<remote host:directory> [--delay=<seconds> --queue=<size>]
+
+Like most of my other work, this is a utilitarian piece of code I wrote to accomplish something
+quickly and as simply as I could understand it.
+
+There is no warranty, written or implied, nor a guarantee of fit for use of anything in particular.
+
+Shaun Landis
+http://github.com/slandis/
+<slandis@gmail.com>
