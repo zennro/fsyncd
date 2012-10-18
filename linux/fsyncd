@@ -2,9 +2,10 @@
 
 # fsyncd/linux/fsyncd
 # Copyright (C) 2012 Shaun Landis
-# Please see the file COPYING for information on modifying and distributing
+# This code is free to be modified and distributed however you please.
+# There is no warranty, written nor implied.
 
-# Watch a directory via inotify and rsync to a host on a timed (local->remote)
+# Watch a path(s) via inotify and rsync to a host on a timed (local->remote)
 # and event-queue (local<-remote) driven basis.
 
 # This is messy, and could be better. Enough said.
@@ -14,14 +15,28 @@ use Getopt::Long;
 use File::Basename;
 
 my $log = 0;
-my %opts = ('log' => \$log);
+my $daemon = 1;
+my %opts = ('log' => \$log, 'daemon' => \$daemon);
 $opts{delay} = 0;
 $opts{queue} = 1;
 
-GetOptions(\%opts, 'source=s', 'target=s', 'delay=i', 'queue=i', 'log');
+GetOptions(\%opts, 'source=s', 'target=s', 'delay=i', 'queue=i', 'log', 'daemon!');
 
+# Some simple sanity checks
 if (!exists($opts{source}) || !exists($opts{target})) {
   die("You must specify a source and a target!");
+}
+
+if ($daemon) {
+  # We don't want to dump data if we're fork()ing
+  $log = 0;
+  my $pid = fork();
+
+  if ($pid) {
+    exit(0);
+  } else {
+    setpgrp;
+  }
 }
 
 my ($source, $base) = fileparse($opts{source});
