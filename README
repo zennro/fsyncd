@@ -1,5 +1,6 @@
 # fsyncd/README
 # Copyright (C) 2012 Shaun Landis
+# Please see the file COPYING for information on modifying and distributing
 
 This script is an implementation of Linux::Inotify2 and Mac::FSEvents, and effectively
 monitors the given path(s) for changes, and the rsyncs these changes to a remote directory
