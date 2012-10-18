@@ -1,0 +1,95 @@
+#!/usr/bin/perl
+
+# fsyncd-linux/fsyncd
+# Copyright (C) 2012 Shaun Landis
+
+# Watch a directory via inotify and rsync to a host on a timed (local->remote)
+# and event-queue (local<-remote) driven basis.
+
+# This is messy, and could be better. Enough said.
+
+use Linux::Inotify2;
+use Getopt::Long;
+use File::Basename;
+use IO::Select;
+
+my $remote = 0;
+my $log = 0;
+my %opts = ('log' => \$log);
+$opts{delay} = 0;
+$opts{queue} = 1;
+
+GetOptions(\%opts, 'source=s', 'target=s', 'delay=i', 'queue=i', 'log');
+
+if (!exists($opts{source}) || !exists($opts{target})) {
+  die("You must specify a source and a target!");
+}
+
+my ($source, $base) = fileparse($opts{source});
+my ($host, $target) = split(/:/, $opts{target});
+my $last = time;
+my $events = 0;
+my $rsync = 0;
+
+# Does a remote->local sync
+sub remote_sync {
+  $last = time;
+  $rsync = 1;
+  $remote = 1;
+
+  if ($log) {
+    printf "[%s] <- rsync %s:%s %s\n", time, $host, $target, $base;
+  }
+  
+  system("rsync -auz --delete-before $host:$target $base");
+  $rsync = 0;
+}
+
+# Does a local->remote sync
+sub local_sync {
+  $events = 0;
+  $rsync = 1;
+    
+  if ($log) {
+    printf "[%d] -> rsync %s/%s %s:\n", time, $base, $source, $host;
+  }
+  
+  system("rsync -auz --delete-before $base/$source $host:");
+  $rsync = 0;
+}
+
+# Perform an initial remote->local sync to get the base
+remote_sync;
+
+# Setup the watch structure and begin
+my $pool = new Linux::Inotify2 or die;
+
+$pool->blocking(0);
+$pool->watch("$base/$source", IN_MODIFY|IN_ATTRIB|IN_MOVE|IN_CLOSEWRITE|IN_DELETE|IN_CREATE|IN_MOVE_SELF);
+
+while () {
+  if ($remote) {
+    $remote = 0;
+    next;
+  }
+
+  my @evts = $pool->read;
+    # We only want to execute the rsync after we've filled the queue..
+    foreach $e (@evts) {
+      $events++;
+  }
+
+  if ($events >= $opts{queue}) {
+    # Perform the rsync operation, but only if we're not currently running something already.
+    if (!$rsync) {
+      local_sync;
+    }
+  }
+
+  if ($opts{delay} && $last+$opts{delay} <= time) {
+    # Do it.
+    remote_sync;
+  }
+
+  sleep(1);
+}
