@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# fsyncd-linux/fsyncd
+# fsyncd/linux/fsyncd
 # Copyright (C) 2012 Shaun Landis
 
 # Watch a directory via inotify and rsync to a host on a timed (local->remote)
