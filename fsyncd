@@ -5,7 +5,7 @@
 # This code is free to be modified and distributed however you please.
 # There is no warranty, written nor implied.
 
-# Watch a path(s) via inotify|fsevents and rsync to a host on a timed (local->remote)
+# Watch a path via inotify|fsevents and rsync to a host on a timed (local->remote)
 # and event-queue (local<-remote) driven basis.
 
 # This is messy, and could be better. Enough said.
@@ -16,8 +16,10 @@ use IO::Select;
 use if $^O eq "darwin", "Mac::FSEvents";
 use if $^O eq "linux", "Linux::Inotify2";
 
+my $flags;
+
 if ($^O eq "darwin") {
-    use Mac::FSEvents qw(:flags);
+    Mac::FSEvents->import;
     use constant FSE_NONE       => 0x00000000;
     use constant FSE_CREATED    => 0x00000100;
     use constant FSE_REMOVED    => 0x00000200;
@@ -27,7 +29,7 @@ if ($^O eq "darwin") {
     use constant FSE_ISDIR      => 0x00020000;
     use constant FSE_ISLINK     => 0x00040000;
 
-    my $flags = FSE_CREATED | FSE_REMOVED | FSE_RENAMED | FSE_MODIFIED | FSE_ISDIR | FSE_ISFILE;
+    $flags = FSE_CREATED | FSE_REMOVED | FSE_RENAMED | FSE_MODIFIED | FSE_ISDIR | FSE_ISFILE;
 }
 
 my $dry = 0;
@@ -116,7 +118,7 @@ my $fd;
 
 if ($^O eq "darwin") {
     $pool = Mac::FSEvents->new({
-        path    => "$base/$source",
+        path    => $base.'/'.$source,
         flags   => FILE_EVENTS,
     });
 
