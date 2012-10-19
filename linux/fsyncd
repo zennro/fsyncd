@@ -57,7 +57,7 @@ sub remote_sync {
     printf "[%s] <- rsync %s:%s %s\n", time, $host, $target, $base;
   }
   
-  system("rsync -auz --delete-before $host:$target $base");
+  system("rsync -auz --delete-before --no-perms --exclude .index $host:$target $base");
   $rsync = 0;
 }
 
@@ -70,7 +70,7 @@ sub local_sync {
     printf "[%d] -> rsync %s/%s %s:\n", time, $base, $source, $host;
   }
   
-  system("rsync -auz --delete-before $base/$source $host:");
+  system("rsync -auz --delete-before --no-perms --exclude .index $base/$source $host:");
   $rsync = 0;
 }
 

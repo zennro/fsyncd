@@ -1,0 +1,126 @@
+#!/usr/bin/perl
+
+# fsyncd/mac/fsyncd
+# Copyright (C) 2012 Shaun Landis
+# This code is free to be modified and distributed however you please.
+# There is no warranty, written nor implied.
+
+# Watch a path(s) via fsevets and rsync to a host on a timed (local->remote)
+# and event-queue (local<-remote) driven basis.
+
+# This is messy, and could be better. Enough said.
+
+use Mac::FSEvents qw(:flags);
+use Getopt::Long;
+use File::Basename;
+use IO::Select;
+
+my $log = 0;
+my $daemon = 1;
+my %opts = ('log' => \$log, 'daemon' => \$daemon);
+$opts{delay} = 0;
+$opts{queue} = 1;
+
+GetOptions(\%opts, 'source=s', 'target=s', 'delay=i', 'queue=i', 'log', 'daemon!');
+
+# Some simple sanity checks
+if (!exists($opts{source}) || !exists($opts{target})) {
+  die("You must specify a source and a target!");
+}
+
+if ($daemon) {
+  # We don't want to dump data if we're fork()ing
+  $log = 0;
+  my $pid = fork();
+
+  if ($pid) {
+    exit(0);
+  } else {
+    setpgrp;
+  }
+}
+
+my ($source, $base) = fileparse($opts{source});
+my ($host, $target) = split(/:/, $opts{target});
+
+my $last = time;
+my $remote = 0;
+my $queue = 0;
+my $rsync = 0;
+
+# Does a remote->local sync
+sub remote_sync {
+  $last = time;
+  $rsync = 1;
+  $remote = 1;
+
+  if ($log) {
+    printf "[%s] <- rsync %s:%s %s\n", time, $host, $target, $base;
+  }
+  
+  system("rsync -auz --delete-before --no-perms --exclude .index $host:$target $base");
+  $rsync = 0;
+}
+
+# Does a local->remote sync
+sub local_sync {
+  $events = 0;
+  $rsync = 1;
+    
+  if ($log) {
+    printf "[%d] -> rsync %s/%s %s:\n", time, $base, $source, $host;
+  }
+  
+  system("rsync -auz --delete-before --no-perms --exclude .index $base/$source $host:");
+  $rsync = 0;
+}
+
+# Perform an initial remote->local sync to get the base
+local_sync;
+remote_sync;
+
+my $pool = Mac::FSEvents->new({
+      path    =>  $base.'/'.$source,
+      flags   => FILE_EVENTS,
+  });
+
+my $fh = $fs->watch;
+my $sel = IO::Select->new($fh);
+
+# http://developer.apple.com/library/mac/#documentation/Darwin/Reference/FSEvents_Ref/FSEvents_h/index.html#//apple_ref/c/tag/FSEventStreamEventFlags
+my %namess = reverse (
+    kFSEventStreamEventFlagNone              => 0x00000000,
+    kFSEventStreamEventFlagItemCreated       => 0x00000100,
+    kFSEventStreamEventFlagItemRemoved       => 0x00000200,
+    kFSEventStreamEventFlagItemInodeMetaMod  => 0x00000400,
+    kFSEventStreamEventFlagItemRenamed       => 0x00000800,
+    kFSEventStreamEventFlagItemModified      => 0x00001000,
+    kFSEventStreamEventFlagItemFinderInfoMod => 0x00002000,
+    kFSEventStreamEventFlagItemChangeOwner   => 0x00004000,
+    kFSEventStreamEventFlagItemXattrMod      => 0x00008000,
+    kFSEventStreamEventFlagItemIsFile        => 0x00010000,
+    kFSEventStreamEventFlagItemIsDir         => 0x00020000,
+    kFSEventStreamEventFlagItemIsSymlink     => 0x00040000
+);
+
+use constant kFSEventStreamEventFlagItemIsFile => 0x00010000;
+use constant kFSEventStreamEventFlagItemIsDir  => 0x00020000;
+
+while () {
+	if ($select->can_read) {
+	    for my $event ($fse->read_events) {
+	        my $flags = $event->flags;
+	        my @names;
+
+	        next unless $flags & kFSEventStreamEventFlagItemIsFile || $flags & kFSEventStreamEventFlagItemIsDir;
+
+	        while ((my $flag = $flags & -$flags) != 0) {
+	            push @names, $names{$flag} || sprintf '0x%.8X';
+	            $flags &= ~$flag;
+	        }
+
+	        printf qq['%s': %s\n], $event->path, join ' | ', @names;
+    	}
+	}
+}
+$fse->stop;
