@@ -20,7 +20,7 @@ Please visit http://www.eng.cam.ac.uk/help/jpmg/ssh/authorized_keys_howto.html f
 in setting up a valid keypair.
 
 Usage:
-  fsyncd --source=<directory> --target=<remote host:directory> [--delay=<seconds> --queue=<size> --log --no-daemon]
+  fsyncd --source=<directory> --target=<remote host:directory> [--delay=<seconds> --queue=<size> --log --dry --nodaemon]
 
 Like most of my other work, this is a utilitarian piece of code I wrote to accomplish something
 quickly and as simply as I could understand it.
