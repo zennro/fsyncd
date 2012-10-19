@@ -1,11 +1,11 @@
 #!/usr/bin/perl
 
-# fsyncd/linux/fsyncd
+# fsyncd/fsyncd
 # Copyright (C) 2012 Shaun Landis
 # This code is free to be modified and distributed however you please.
 # There is no warranty, written nor implied.
 
-# Watch a path(s) via inotify and rsync to a host on a timed (local->remote)
+# Watch a path(s) via inotify|fsevents and rsync to a host on a timed (local->remote)
 # and event-queue (local<-remote) driven basis.
 
 # This is messy, and could be better. Enough said.
@@ -33,11 +33,27 @@ if ($^O eq "darwin") {
 my $dry = 0;
 my $log = 0;
 my $daemon = 1;
-my %opts = ('log' => \$log, 'dry' => \$dry, 'daemon' => \$daemon);
+my $help = 0;
+my %opts = ('log' => \$log, 'dry' => \$dry, 'daemon' => \$daemon, 'help' => \$help);
 $opts{delay} = 0;
 $opts{queue} = 1;
 
-GetOptions(\%opts, 'source=s', 'target=s', 'delay=i', 'queue=i', 'log', 'dry', 'daemon!');
+GetOptions(\%opts, 'source=s', 'target=s', 'delay=i', 'queue=i', 'log', 'dry', 'daemon!', 'help');
+
+# Display usage and gtfo.
+if ($help) {
+    print "fsyncd - a filesystem event monitor and sync tool\n";
+    print "fsyncd --source=<path> --target=<host:path> --queue=<size> --delay=<seconds> --log --dry --nodaemon --help\n";
+    print "  --source   - defines the source path to monitor on the local machine\n";
+    print "  --target   - defines the target path to sync on the remote machine\n";
+    print "  --queue    - defines the number of events to queue before syncing [default=1]\n";
+    print "  --delay    - enables polling the remote path for changes [default=0/off]\n";
+    print "  --log      - enables logging; automatically disabled if running in daemon mode\n";
+    print "  --nodaemon - enables console mode; useful for logging and debugging\n";
+    print "  --dry      - enables dry mode; everything is configured and executed except the rsync commands\n";
+    print "\n";
+    exit(0);
+}
 
 # Some simple sanity checks
 if (!exists($opts{source}) || !exists($opts{target})) {
