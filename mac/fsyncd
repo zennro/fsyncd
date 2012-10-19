@@ -84,43 +84,46 @@ my $pool = Mac::FSEvents->new({
       flags   => FILE_EVENTS,
   });
 
-my $fh = $fs->watch;
-my $sel = IO::Select->new($fh);
+my $select = IO::Select->new($pool->watch) or die;
 
-# http://developer.apple.com/library/mac/#documentation/Darwin/Reference/FSEvents_Ref/FSEvents_h/index.html#//apple_ref/c/tag/FSEventStreamEventFlags
-my %namess = reverse (
-    kFSEventStreamEventFlagNone              => 0x00000000,
-    kFSEventStreamEventFlagItemCreated       => 0x00000100,
-    kFSEventStreamEventFlagItemRemoved       => 0x00000200,
-    kFSEventStreamEventFlagItemInodeMetaMod  => 0x00000400,
-    kFSEventStreamEventFlagItemRenamed       => 0x00000800,
-    kFSEventStreamEventFlagItemModified      => 0x00001000,
-    kFSEventStreamEventFlagItemFinderInfoMod => 0x00002000,
-    kFSEventStreamEventFlagItemChangeOwner   => 0x00004000,
-    kFSEventStreamEventFlagItemXattrMod      => 0x00008000,
-    kFSEventStreamEventFlagItemIsFile        => 0x00010000,
-    kFSEventStreamEventFlagItemIsDir         => 0x00020000,
-    kFSEventStreamEventFlagItemIsSymlink     => 0x00040000
-);
+use constant FSE_NONE		=> 0x00000000;
+use constant FSE_CREATED	=> 0x00000100;
+use constant FSE_REMOVED	=> 0x00000200;
+use constant FSE_RENAMED	=> 0x00000800;
+use constant FSE_MODIFIED	=> 0x00001000;
+use constant FSE_ISFILE		=> 0x00010000;
+use constant FSE_ISDIR		=> 0x00020000;
+use constant FSE_ISLINK		=> 0x00040000;
 
-use constant kFSEventStreamEventFlagItemIsFile => 0x00010000;
-use constant kFSEventStreamEventFlagItemIsDir  => 0x00020000;
+my $flags = FSE_CREATED | FSE_REMOVED | FSE_RENAMED | FSE_MODIFIED | FSE_ISDIR | FSE_ISFILE;
 
 while () {
-	if ($select->can_read) {
-	    for my $event ($fse->read_events) {
-	        my $flags = $event->flags;
-	        my @names;
-
-	        next unless $flags & kFSEventStreamEventFlagItemIsFile || $flags & kFSEventStreamEventFlagItemIsDir;
-
-	        while ((my $flag = $flags & -$flags) != 0) {
-	            push @names, $names{$flag} || sprintf '0x%.8X';
-	            $flags &= ~$flag;
-	        }
-
-	        printf qq['%s': %s\n], $event->path, join ' | ', @names;
-    	}
+	# We just performed a local<-remote sync, so we have no need to catch the events here..
+ 	if ($remote) {
+		$remote = 0;
+		next;
 	}
+
+	if ($select->can_read(1)) {
+	    for my $event ($pool->read_events) {
+	        if ($event->flags & $flags) {
+	        	$queue++;
+	        }
+	    }
+	}
+
+	# Perform the rsync operation, but only if we're not currently running something already.
+    if ($queue >= $opts{queue}) {
+        if (!$rsync) {
+            local_sync;
+            $queue = 0;
+        }
+    }
+
+    if ($opts{delay} && $last+$opts{delay} <= time) {
+        # Do it.
+        remote_sync;
+    }
+
+    sleep(1);
 }
-$fse->stop;
