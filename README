@@ -19,8 +19,15 @@ changes. For Linux, this is inotify. For OS X, this is FSEvents.
 Please visit http://www.eng.cam.ac.uk/help/jpmg/ssh/authorized_keys_howto.html for assistance
 in setting up a valid keypair.
 
-Usage:
-  fsyncd --source=<directory> --target=<remote host:directory> [--delay=<seconds> --queue=<size> --log --dry --nodaemon]
+fsyncd - a filesystem event monitor and sync tool
+fsyncd --source=<path> --target=<host:path> --queue=<size> --delay=<seconds> --log --dry --nodaemon --help
+  --source   - defines the source path to monitor on the local machine
+  --target   - defines the target path to sync on the remote machine
+  --queue    - defines the number of events to queue before syncing [default=1]
+  --delay    - enables polling the remote path for changes [default=0/off]
+  --log      - enables logging; automatically disabled if running in daemon mode
+  --nodaemon - enables console mode; useful for logging and debugging
+  --dry      - enables dry mode; everything is configured and executed except the rsync commands
 
 Like most of my other work, this is a utilitarian piece of code I wrote to accomplish something
 quickly and as simply as I could understand it.
