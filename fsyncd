@@ -16,20 +16,24 @@ use IO::Select;
 use if $^O eq "darwin", "Mac::FSEvents";
 use if $^O eq "linux", "Linux::Inotify2";
 
+use constant {
+    FSE_NONE       => 0x00000000,
+    FSE_CREATED    => 0x00000100,
+    FSE_REMOVED    => 0x00000200,
+    FSE_RENAMED    => 0x00000800,
+    FSE_MODIFIED   => 0x00001000,
+    FSE_ISFILE     => 0x00010000,
+    FSE_ISDIR      => 0x00020000,
+    FSE_ISLINK     => 0x00040000,
+}
+
 my $flags;
 
 if ($^O eq "darwin") {
     Mac::FSEvents->import;
-    use constant FSE_NONE       => 0x00000000;
-    use constant FSE_CREATED    => 0x00000100;
-    use constant FSE_REMOVED    => 0x00000200;
-    use constant FSE_RENAMED    => 0x00000800;
-    use constant FSE_MODIFIED   => 0x00001000;
-    use constant FSE_ISFILE     => 0x00010000;
-    use constant FSE_ISDIR      => 0x00020000;
-    use constant FSE_ISLINK     => 0x00040000;
-
     $flags = FSE_CREATED | FSE_REMOVED | FSE_RENAMED | FSE_MODIFIED | FSE_ISDIR | FSE_ISFILE;
+} elsif ($^O eq "linux") {
+    $flags = IN_MODIFY | IN_MOVE | IN_CLOSEWRITE | IN_DELETE | IN_CREATE | IN_MOVE_SELF;
 }
 
 my $dry = 0;
@@ -125,7 +129,7 @@ if ($^O eq "darwin") {
     $fd = $pool->watch;
 } elsif ($^O eq "linux") {
     $pool = new Linux::Inotify2;
-    $pool->watch("$base/$source", IN_MODIFY|IN_MOVE|IN_CLOSEWRITE|IN_DELETE|IN_CREATE|IN_MOVE_SELF);
+    $pool->watch("$base/$source", $flags);
     $fd = $pool->fileno;
 }
 
